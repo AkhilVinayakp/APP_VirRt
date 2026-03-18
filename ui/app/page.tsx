@@ -22,8 +22,9 @@ export default function ChatPage() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
@@ -41,17 +42,47 @@ export default function ChatPage() {
 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setIsLoading(true);
 
-    // simple fake bot reply
-    const botMsg: Message = {
-      id: Date.now() + 1,
-      author: "bot",
-      text: "Thanks for your message! (This is a static demo reply.)",
-      timestamp: time,
-    };
-    setTimeout(() => {
+    try {
+      const res = await fetch("http://localhost:8000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: trimmed }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const data: { reply: string } = await res.json();
+
+      const botMsg: Message = {
+        id: Date.now() + 1,
+        author: "bot",
+        text: data.reply,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
       setMessages((prev) => [...prev, botMsg]);
-    }, 600);
+    } catch (err) {
+      const errorMsg: Message = {
+        id: Date.now() + 2,
+        author: "bot",
+        text: "Sorry, I couldn&apos;t reach the FindYourHome service. Please check that the backend is running on http://localhost:8000.",
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -140,9 +171,9 @@ export default function ChatPage() {
             <button
               type="submit"
               className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-emerald-900/60 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!input.trim()}
+              disabled={!input.trim() || isLoading}
             >
-              Send
+              {isLoading ? "Finding..." : "Send"}
             </button>
           </div>
         </form>
